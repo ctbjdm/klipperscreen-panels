@@ -1,0 +1,67 @@
+import logging
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+from ks_includes.screen_panel import ScreenPanel
+
+class Panel(ScreenPanel):
+    def __init__(self, screen, title, **kwargs):
+        super().__init__(screen, title)
+        self.buttons = {}
+
+        positions = {
+            'bl': (10, 490),   'bm': (250, 490),  'br': (490, 490),
+            'cl': (10, 250),   'cm': (250, 250),   'cr': (490, 250),
+            'fl': (10, 10),    'fm': (250, 10),    'fr': (490, 10),
+        }
+
+        icons = {
+            'bl': 'bed-level-t-l', 'bm': 'bed-level-t-m', 'br': 'bed-level-t-r',
+            'cl': 'bed-level-m-l', 'cm': 'bed-level-c',   'cr': 'bed-level-m-r',
+            'fl': 'bed-level-b-l', 'fm': 'bed-level-b-m', 'fr': 'bed-level-b-r',
+        }
+
+        labels = {
+            'bl': 'Back L', 'bm': 'Back M', 'br': 'Back R',
+            'cl': 'Left',   'cm': 'Center', 'cr': 'Right',
+            'fl': 'Front L','fm': 'Front M','fr': 'Front R',
+        }
+
+        for key, (x, y) in positions.items():
+            self.buttons[key] = self._screen.gtk.Button(
+                icons[key], labels[key], "color1"
+            )
+            self.buttons[key].connect("clicked", self.go_to_position, x, y)
+
+        bedgrid = Gtk.Grid()
+        bedgrid.set_row_homogeneous(True)
+        bedgrid.set_column_homogeneous(True)
+        bedgrid.attach(self.buttons['bl'], 0, 0, 1, 1)
+        bedgrid.attach(self.buttons['bm'], 1, 0, 1, 1)
+        bedgrid.attach(self.buttons['br'], 2, 0, 1, 1)
+        bedgrid.attach(self.buttons['cl'], 0, 1, 1, 1)
+        bedgrid.attach(self.buttons['cm'], 1, 1, 1, 1)
+        bedgrid.attach(self.buttons['cr'], 2, 1, 1, 1)
+        bedgrid.attach(self.buttons['fl'], 0, 2, 1, 1)
+        bedgrid.attach(self.buttons['fm'], 1, 2, 1, 1)
+        bedgrid.attach(self.buttons['fr'], 2, 2, 1, 1)
+
+        self.content.add(bedgrid)
+
+    def go_to_position(self, widget, x, y):
+        if self._printer.get_stat("toolhead", "homed_axes") != "xyz":
+            self._screen._ws.klippy.gcode_script("G28")
+        script = (
+            "G90\n"
+            "G1 Z25 F3000\n"
+            f"G1 X{x} Y{y} F6000"
+        )
+        self._screen._send_action(widget, "printer.gcode.script", {"script": script})
+
+    def process_busy(self, busy):
+        for button in self.buttons:
+            self.buttons[button].set_sensitive(not busy)
+
+    def process_update(self, action, data):
+        if 'idle_timeout' in data:
+            self.process_busy(data['idle_timeout']['state'].lower() == "printing")

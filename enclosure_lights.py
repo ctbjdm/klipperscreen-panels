@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""
+enclosure_lights.py
+===================
+KlipperScreen panel for manual control of the WLED enclosure lights.
+Talks directly to the WLED JSON API at the configured host.
+Does not interfere with the printer-lights service.
+
+Buttons: Off / 25% / 50% / 75% / 100%
+"""
+import logging
+import threading
+import requests
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib
+from ks_includes.screen_panel import ScreenPanel
+
+WLED_HOST = "3dp-wled.computertoolbox.com"
+WLED_URL  = f"http://{WLED_HOST}/json/state"
+TIMEOUT   = 4.0
+TRANS_MS  = 700
+
+# PWM-white segment payload (white channel + fx:0) so the analog strip lights.
+WHITE_SEG = [{"fx": 0, "col": [[0, 0, 0, 255]]}]
+
+# (label, value, icon, style) -- value is "off" or a 0-255 brightness.
+BRIGHTNESS_LEVELS = [
+    ("Off",  "off", "cancel",    "color3"),
+    ("25%",  64,    "light-off", "color1"),
+    ("50%",  128,   "light",     "color2"),
+    ("75%",  191,   "light",     "color3"),
+    ("100%", 255,   "light",     "color4"),
+]
+
+
+def _wled_post(payload: dict) -> bool:
+    body = dict(payload)
+    body["tt"] = TRANS_MS // 100
+    body["v"]  = True
+    try:
+        r = requests.post(WLED_URL, json=body, timeout=TIMEOUT)
+        return r.status_code == 200
+    except Exception as exc:
+        logging.error("enclosure_lights: WLED request failed: %s", exc)
+        return False
+
+
+def _wled_get():
+    try:
+        r = requests.get(WLED_URL, timeout=TIMEOUT)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as exc:
+        logging.error("enclosure_lights: WLED GET failed: %s", exc)
+    return None
+
+
+class Panel(ScreenPanel):
+    def __init__(self, screen, title, **kwargs):
+        super().__init__(screen, title)
+
+        self.buttons = []
+        grid = Gtk.Grid()
+        grid.set_row_homogeneous(True)
+        grid.set_column_homogeneous(True)
+        grid.set_row_spacing(8)
+        grid.set_column_spacing(8)
+
+        for i, (label, value, icon, style) in enumerate(BRIGHTNESS_LEVELS):
+            btn = self._screen.gtk.Button(icon, label, style)
+            btn.connect("clicked", self._on_click, value)
+            self.buttons.append(btn)
+            grid.attach(btn, i % 3, i // 3, 1, 1)
+
+        self.status_label = Gtk.Label(label="Checking lights…")
+        self.status_label.set_halign(Gtk.Align.CENTER)
+        grid.attach(self.status_label, 0, 2, 3, 1)
+
+        self.content.add(grid)
+        threading.Thread(target=self._refresh_status, daemon=True).start()
+
+    def _on_click(self, button, value):
+        if value == "off":
+            payload = {"on": False}
+        else:
+            payload = {"on": True, "bri": value, "seg": WHITE_SEG}
+        self._call_async(payload)
+
+    def _call_async(self, payload):
+        self._set_buttons_sensitive(False)
+        def _do():
+            ok = _wled_post(payload)
+            GLib.idle_add(self._after_call, ok)
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _after_call(self, ok):
+        self._set_buttons_sensitive(True)
+        threading.Thread(target=self._refresh_status, daemon=True).start()
+
+    def _refresh_status(self):
+        state = _wled_get()
+        GLib.idle_add(self._update_status_label, state)
+
+    def _update_status_label(self, state):
+        if state is None:
+            self.status_label.set_text("⚠ Could not reach WLED")
+            return
+        if not state.get("on"):
+            self.status_label.set_text("Lights: OFF")
+        else:
+            bri = state.get("bri", 0)
+            pct = round(bri / 255 * 100)
+            self.status_label.set_text(f"Lights: ON  —  {pct}% brightness")
+
+    def _set_buttons_sensitive(self, sensitive: bool):
+        for btn in self.buttons:
+            btn.set_sensitive(sensitive)
+
+    def process_update(self, action, data):
+        pass
