@@ -100,3 +100,20 @@ are already present.
 
 (The [menu __main ...] dashboard TILES for Enclosure Lights and Bed Positions
 render from KlipperScreen.conf and are unaffected by this.)
+
+### Automation: re-apply runs automatically on KlipperScreen start
+
+A systemd drop-in runs reapply-base-panel.sh as an ExecStartPre every time
+KlipperScreen starts, so the sidebar shortcut self-heals after an update
+(the update's own service restart triggers it). No manual step needed.
+
+Drop-in (a SYSTEM file, lives outside this repo):
+    /etc/systemd/system/KlipperScreen.service.d/reapply-shortcut.conf
+
+Contents:
+    [Service]
+    ExecStartPre=-/home/pi/klipperscreen-panels/reapply-base-panel.sh
+
+The leading '-' makes systemd ignore a non-zero exit, so the script can
+never block KlipperScreen from starting. To recreate it after an OS reflash:
+create the file above, then `sudo systemctl daemon-reload`.
