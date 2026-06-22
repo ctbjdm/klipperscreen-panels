@@ -62,6 +62,7 @@ fade) until the next print-state change.
 git clone <this-repo-url> ~/klipperscreen-panels
 ln -s ~/klipperscreen-panels/bed_positions.py    ~/KlipperScreen/panels/bed_positions.py
 ln -s ~/klipperscreen-panels/enclosure_lights.py ~/KlipperScreen/panels/enclosure_lights.py
+~/klipperscreen-panels/reapply-base-panel.sh
 sudo systemctl restart KlipperScreen
 ```
 
@@ -77,3 +78,25 @@ disconnected" Discord notifications. Moonraker has no option to exclude a
 subfolder, so the only fix is to keep scheduled backup writes out of the watched
 tree. This repo sits outside `~/printer_data/` entirely, so it's safe to commit
 and push on a schedule.
+
+
+## Sidebar shortcut (base_panel.py) - re-apply after every KlipperScreen update
+
+The Enclosure Lights side button is wired by editing the hardcoded
+self.shorcut dict in ~/KlipperScreen/panels/base_panel.py:
+
+- "panel": "gcode_macros"  ->  "panel": "enclosure_lights"
+- "icon": "custom-script"  ->  "icon": "light"
+
+base_panel.py is a STOCK KlipperScreen file, so every KlipperScreen update or
+reinstall overwrites it and reverts the shortcut. After any update, run the
+idempotent re-apply script, then restart KlipperScreen:
+
+    ~/klipperscreen-panels/reapply-base-panel.sh
+    sudo systemctl restart KlipperScreen
+
+It backs up base_panel.py (timestamped) before editing and no-ops if the edits
+are already present.
+
+(The [menu __main ...] dashboard TILES for Enclosure Lights and Bed Positions
+render from KlipperScreen.conf and are unaffected by this.)
