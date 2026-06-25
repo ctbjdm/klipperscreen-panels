@@ -1,15 +1,13 @@
 import logging
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk
 from ks_includes.screen_panel import ScreenPanel
-INACTIVITY_SECONDS = 120  # auto-return to main menu after idle
 
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
         self.buttons = {}
-        self._idle_timeout = None
 
         positions = {
             'bl': (10, 490),   'bm': (250, 490),  'br': (490, 490),
@@ -50,39 +48,7 @@ class Panel(ScreenPanel):
 
         self.content.add(bedgrid)
 
-    def activate(self):
-        try:
-            super().activate()
-        except AttributeError:
-            pass
-        self._reset_idle_timer()
-
-    def deactivate(self):
-        self._cancel_idle_timer()
-        try:
-            super().deactivate()
-        except AttributeError:
-            pass
-
-    def _reset_idle_timer(self):
-        self._cancel_idle_timer()
-        self._idle_timeout = GLib.timeout_add_seconds(
-            INACTIVITY_SECONDS, self._idle_expired)
-
-    def _cancel_idle_timer(self):
-        if self._idle_timeout is not None:
-            GLib.source_remove(self._idle_timeout)
-            self._idle_timeout = None
-
-    def _idle_expired(self):
-        self._idle_timeout = None
-        logging.info("bed_positions: idle %ss, returning to main menu",
-                     INACTIVITY_SECONDS)
-        self._screen._menu_go_back(home=True)
-        return False
-
     def go_to_position(self, widget, x, y):
-        self._reset_idle_timer()
         if self._printer.get_stat("toolhead", "homed_axes") != "xyz":
             self._screen._ws.klippy.gcode_script("G28")
         script = (

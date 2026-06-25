@@ -20,7 +20,6 @@ WLED_HOST = "3dp-wled.computertoolbox.com"
 WLED_URL  = f"http://{WLED_HOST}/json/state"
 TIMEOUT   = 4.0
 TRANS_MS  = 700
-INACTIVITY_SECONDS = 120  # auto-return to main menu after idle
 
 # PWM-white segment payload (white channel + fx:0) so the analog strip lights.
 WHITE_SEG = [{"fx": 0, "col": [[0, 0, 0, 255]]}]
@@ -62,7 +61,6 @@ class Panel(ScreenPanel):
         super().__init__(screen, title)
 
         self.buttons = []
-        self._idle_timeout = None
         grid = Gtk.Grid()
         grid.set_row_homogeneous(True)
         grid.set_column_homogeneous(True)
@@ -83,7 +81,6 @@ class Panel(ScreenPanel):
         threading.Thread(target=self._refresh_status, daemon=True).start()
 
     def _on_click(self, button, value):
-        self._reset_idle_timer()
         if value == "off":
             payload = {"on": False}
         else:
@@ -119,37 +116,6 @@ class Panel(ScreenPanel):
     def _set_buttons_sensitive(self, sensitive: bool):
         for btn in self.buttons:
             btn.set_sensitive(sensitive)
-
-    def activate(self):
-        try:
-            super().activate()
-        except AttributeError:
-            pass
-        self._reset_idle_timer()
-
-    def deactivate(self):
-        self._cancel_idle_timer()
-        try:
-            super().deactivate()
-        except AttributeError:
-            pass
-
-    def _reset_idle_timer(self):
-        self._cancel_idle_timer()
-        self._idle_timeout = GLib.timeout_add_seconds(
-            INACTIVITY_SECONDS, self._idle_expired)
-
-    def _cancel_idle_timer(self):
-        if self._idle_timeout is not None:
-            GLib.source_remove(self._idle_timeout)
-            self._idle_timeout = None
-
-    def _idle_expired(self):
-        self._idle_timeout = None
-        logging.info("enclosure_lights: idle %ss, returning to main menu",
-                     INACTIVITY_SECONDS)
-        self._screen._menu_go_back(home=True)
-        return False
 
     def process_update(self, action, data):
         pass
