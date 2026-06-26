@@ -20,7 +20,7 @@ WLED_HOST = "3dp-wled.computertoolbox.com"
 WLED_URL  = f"http://{WLED_HOST}/json/state"
 TIMEOUT   = 4.0
 TRANS_MS  = 700
-INACTIVITY_SECONDS = 20  # auto-return to main menu after idle
+INACTIVITY_SECONDS = 120  # auto-return to main menu after idle
 
 # PWM-white segment payload (white channel + fx:0) so the analog strip lights.
 WHITE_SEG = [{"fx": 0, "col": [[0, 0, 0, 255]]}]

@@ -3,7 +3,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 from ks_includes.screen_panel import ScreenPanel
-INACTIVITY_SECONDS = 20  # auto-return to main menu after idle
+INACTIVITY_SECONDS = 120  # auto-return to main menu after idle
 
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
